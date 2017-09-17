@@ -1,0 +1,135 @@
+---
+title: "Assignment"
+author: "Praveen S"
+date: "16 September 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Machine Learning Assignment
+###Introduction
+This document describes how to build a predictive model for the weight lifting exercises data set.
+The main objective is to predict the kind of weight lifting performed for a given set of data.
+It is observed that we can fit a Random Forest Model which can predict on test data with good accuracy.
+
+###Data input and cleansing
+We will check the data for training and validation.In the input pml training data there are a number of variables that are set to factor but actually which are numeric.
+```{r,echo=FALSE}
+setwd( "C:/Users/praveen/Desktop/DataScience/Machine Learning/Project")
+```
+```{r}
+pm1.data <- read.csv("pml-training.csv", na.strings = c("NA",""))
+str(pm1.data)
+```
+#### Inspecting levels of factor variables to find those with only useless levels
+```{r}
+for (colName in colnames(pm1.data[,sapply(pm1.data, class)=="factor"])){
+  print(colName)
+  print(levels(pm1.data[[colName]]))
+}
+```
+#### Removing variables which are of no use from data set.
+```{r}
+variables <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2",
+  "kurtosis_yaw_belt", "skewness_yaw_belt", "amplitude_yaw_belt", "cvtd_timestamp",
+  "kurtosis_yaw_dumbbell", "skewness_yaw_dumbbell", "amplitude_yaw_dumbbell",
+  "kurtosis_yaw_forearm", "skewness_yaw_forearm", "amplitude_yaw_forearm")
+pm1.data <- pm1.data[,-which(names(pm1.data) %in% variables)]
+
+```
+#### Convert factor variables which are numeric to numeric values.
+```{r}
+variables <- c("kurtosis_roll_belt", "kurtosis_picth_belt", "skewness_roll_belt",
+  "skewness_roll_belt.1", "max_yaw_belt", "min_yaw_belt",
+  "kurtosis_roll_arm","kurtosis_picth_arm", "kurtosis_yaw_arm",
+  "skewness_roll_arm","skewness_pitch_arm", "skewness_yaw_arm",
+  "kurtosis_roll_dumbbell", "kurtosis_picth_dumbbell","skewness_roll_dumbbell",
+  "skewness_pitch_dumbbell","max_yaw_dumbbell", "min_yaw_dumbbell",
+  "kurtosis_roll_forearm","kurtosis_picth_forearm", "skewness_roll_forearm",
+  "skewness_pitch_forearm", "max_yaw_forearm", "min_yaw_forearm")
+
+for (variable in variables) {
+  
+pm1.data[[variable]] <- as.numeric(as.character(pm1.data[[variable]]))
+  }
+```
+#### Many variables have NA values and we will build a model using variables that does not have any NA values.
+
+```{r}
+pm1.data.naCounts <- colSums(sapply(pm1.data,is.na))
+pm1.data.full <- pm1.data[,pm1.data.naCounts == 0]
+```
+### Training the model
+we will take 60 % of the data for testing and remaining 40 % for testing.
+In the training set itself we will again divide it in to 60 % and 40 % for training and validation.
+
+```{r}
+library(caret)
+set.seed(12344)
+inTrain <- createDataPartition(pm1.data.full$classe,p=0.6,list = FALSE)
+
+pm1.data.train <- pm1.data.full[inTrain, ]
+pm1.data.test <- pm1.data.full[-inTrain, ]
+```
+
+#### Checking whether training set contains numeric variables which have no or close to zero variance.
+#####```{r}
+#####nearZeroVar(pml.data.train[, sapply(pml.data.train, is.numeric)])
+#####```
+##### There are no numeric variables with near zero variance. So we will continue building the model using all the remaining variables.
+```{r}
+library(caret)
+modelFit <- train(classe~ ., data = pm1.data.train, method="rf",importance=TRUE)
+
+```
+### Verify the model
+#### Testing the model with the test data
+```{r}
+predictionResults <- confusionMatrix(pm1.data.test$classe, predict(modelFit, pm1.data.test))
+predictionResults$table
+```
+
+### Predict with new data
+```{r}
+
+pm1.verification <- read.csv("pml-testing.csv")
+pm1.verification <- pm1.verification[,colnames(pm1.verification) %in% colnames(pm1.data.train)]
+predict(modelFit, pm1.verification)
+
+```
+
+### Rechecking the model
+When we look at the variable importances in the model
+```{r}
+library(caret)
+variable.importances <- varImp(modelFit)
+plot(variable.importances)
+```
+#### Hence we will try to train the model with less number of variables.We calculate the row sum of varaible importnaces and normalize the values.
+```{r}
+variable.importances.sums <- sort(rowSums(variable.importances$importance), decreasing =T)
+variable.importances.sums <- variable.importances.sums/sum(variable.importances.sums)
+
+```
+####If we take first 16 variables we have gathered 50 percent of total importnaces.
+```{r}
+sum(variable.importances.sums[1:16])
+```
+```{r}
+new.train.vars <- c("classe", names(variable.importances.sums[1:16]))
+new.train.data <- pm1.data.train[, colnames(pm1.data.train) %in% new.train.vars]
+new.test.data <- pm1.data.test[, colnames(pm1.data.train) %in% new.train.vars]
+modelFit.reduced <- train(classe ~ ., data = new.train.data, method="rf", importance=TRUE)
+
+```
+###Predicting again the test data with the new model
+```{r}
+confusionMatrix(new.test.data$classe, predict(modelFit.reduced,new.test.data))
+
+```
+### We can observe that we get almost the same accuracy as the initial model with reduced trianing ime.
+
+
