@@ -1,5 +1,5 @@
 # Coursera-Data-Science-Machine-Learning-Project
-Project
+
 This repository contains the R Mark down document and HTML file of project assignment of of Coursera Data Science machine Learning's course.
 
 The goal of your project is to predict the manner in which they did the exercise.This is the "classe" variable in the training set. 
